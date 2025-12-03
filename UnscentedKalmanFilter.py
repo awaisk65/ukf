@@ -1,33 +1,45 @@
 """
-simple_ukf.py
+UnscentedKalmanFilter.py
 
-A minimal class-based example wrapping FilterPy's UKF for a
-1D position-velocity system. This serves as the simplest step
-before building more advanced UKF architectures.
+A minimal class-based example wrapping FilterPy's UKF system. 
+This serves as the simplest step before building more advanced UKF architectures.
 """
 
+import math
 import numpy as np
 from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
 
 
-class SimpleUKF(object):
+class DroneUKFModel:
     """
-    Minimal Unscented Kalman Filter wrapper for a 1D position-velocity model.
+    UKF model defining the state transition and measurement functions
+    for IMU + GPS/VPS fusion.
 
-    State:
-        x = [position, velocity]
+    State vector (dim_x = 10):
+    x = [
+        px, py, pz,
+        vx, vy, vz,
+        qx, qy, qz, qw
+    ]
 
-    Measurement:
-        z = [position]
+    Measurements:
+        IMU: ax, ay, az, gx, gy, gz  (mag optional)
+        GPS/VPS: x_mercator, y_mercator, altitude
     """
 
-    def __init__(self):
+    def __init__(self, dt=0.01):
         """
         Initialize UKF, sigma points, and noise matrices.
+        Parameters
+        ----------
+        dt : float
+            Time step for prediction.
         """
 
-        self.dim_x = 2
-        self.dim_z = 1
+        self.dt = dt
+        self.imu_meas = np.zeros(6)
+        self.gps_meas = np.zeros(3)
+        self.dim_x = 10  # State dimension
 
         # Sigma points
         self.points = MerweScaledSigmaPoints(
@@ -38,80 +50,158 @@ class SimpleUKF(object):
         )
 
         # Construct the UKF
+        # Create UKF
         self.ukf = UnscentedKalmanFilter(
             dim_x=self.dim_x,
-            dim_z=self.dim_z,
-            dt=1.0,
+            dim_z=6,         # overwritten on each update
+            dt=0.01,
             fx=self.fx,
-            hx=self.hx,
+            hx=None,         # we provide measurement functions manually per sensor
             points=self.points
         )
 
-        # Initial state
-        self.ukf.x = np.array([0.0, 1.0])  # position=0, velocity=1
+        # Initial state vector
+        self.ukf.x = np.zeros(self.dim_x)
+        self.ukf.x[9] = 1.0  # quaternion identity
 
-        # Initial covariance
-        self.ukf.P = np.eye(2) * 0.5
-
+        # Initial Covariance (tune later)
+        self.ukf.P = np.eye(self.dim_x) * 0.5
+       
         # Process noise
-        self.ukf.Q = np.eye(2) * 0.01
-
-        # Measurement noise
-        self.ukf.R = np.eye(1) * 2.0
+        self.ukf.Q = np.eye(self.dim_x) * 0.01
 
     # ---------------------------------------------------------
-    # Process model f(x, dt)
+    # 1. STATE TRANSITION MODEL
     # ---------------------------------------------------------
     def fx(self, x, dt):
         """
-        State transition function.
+        Predict next state.
+        Quaternion integrated using gyro (simple integration inside update step).
+
+        Translational model:
+            p_next = p + v * dt
+            v_next = v   (accel added via imu update, not predict)
+
+        Orientation:
+            kept constant in predict step (updated via IMU)
+        """
+        px, py, pz = x[0:3]
+        vx, vy, vz = x[3:6]
+        qx, qy, qz, qw = x[6:10]
+
+        # Position update
+        px += vx * dt
+        py += vy * dt
+        pz += vz * dt
+
+        # No velocity update (accelerometer handled in update)
+        # No quaternion update in predict step
+
+        return np.array([px, py, pz, vx, vy, vz, qx, qy, qz, qw])
+
+   # ----------------------------------------------------------------------
+    # 2. IMU MEASUREMENT MODEL
+    # ----------------------------------------------------------------------
+    def h_imu(self, x):
+        """
+        IMU measurement function:
+            accel_meas = R(q)^T * (v_dot + g)
+            gyro_meas  = omega (derived from quaternion rates)
+
+        For simplicity here:
+            accel_meas = R(q)^T * g
+            gyro_meas  = 0   (gyro update done separately later)
+
+        Output:
+            [ax, ay, az, gx, gy, gz]
+        """
+
+        # Extract quaternion
+        qx, qy, qz, qw = x[6:10]
+
+        # Rotation matrix from quaternion
+        R = self.quat_to_rot(qx, qy, qz, qw)
+
+        g = np.array([0, 0, -9.81])  # gravity
+
+        # IMU accel = R^T * g
+        accel_body = R.T @ g
+
+        # Gyro predicted as zero here
+        gyro_body = np.array([0.0, 0.0, 0.0])
+
+        return np.hstack((accel_body, gyro_body))
+
+    # ----------------------------------------------------------------------
+    # 3. GPS / VPS MEASUREMENT MODEL
+    # ----------------------------------------------------------------------
+    def h_gps(self, x):
+        """
+        GPS/VPS position measurement in ENU/Mercator frame.
+        Output = [px, py, pz]
+        """
+        return x[0:3]
+    
+    # ----------------------------------------------------------------------
+    # Quaternion to rotation matrix
+    # ----------------------------------------------------------------------
+    @staticmethod
+    def quat_to_rot(qx, qy, qz, qw):
+        """Convert quaternion (qx,qy,qz,qw) → 3x3 rotation matrix."""
+        R = np.zeros((3, 3))
+
+        R[0, 0] = 1 - 2*(qy**2 + qz**2)
+        R[0, 1] = 2*(qx*qy - qz*qw)
+        R[0, 2] = 2*(qx*qz + qy*qw)
+
+        R[1, 0] = 2*(qx*qy + qz*qw)
+        R[1, 1] = 1 - 2*(qx**2 + qz**2)
+        R[1, 2] = 2*(qy*qz - qx*qw)
+
+        R[2, 0] = 2*(qx*qz - qy*qw)
+        R[2, 1] = 2*(qy*qz + qx*qw)
+        R[2, 2] = 1 - 2*(qx**2 + qy**2)
+
+        return R
+    
+    def latlon_to_webmercator(self, lat, lon):
+        """
+        Convert latitude/longitude (degrees) to Web Mercator coordinates (meters).
 
         Parameters
         ----------
-        x : ndarray
-            Current state [pos, vel].
-        dt : float
-            Time step.
+        lat : float
+            Latitude in degrees.
+        lon : float
+            Longitude in degrees.
 
         Returns
         -------
-        ndarray
-            Predicted next state.
+        tuple (x, y)
+            Web Mercator coordinates in meters.
         """
-        pos = x[0] + x[1] * dt
-        vel = x[1]
-        return np.array([pos, vel])
+        R = 6378137.0  # WGS-84 Earth radius (meters)
 
-    # ---------------------------------------------------------
-    # Measurement model h(x)
-    # ---------------------------------------------------------
-    def hx(self, x):
-        """
-        Measurement function. We only measure position.
+        x = math.radians(lon) * R
+        y = math.log(math.tan(math.pi / 4.0 + math.radians(lat) / 2.0)) * R
 
-        Parameters
-        ----------
-        x : ndarray
-            State vector.
-
-        Returns
-        -------
-        ndarray
-            Measurement vector [position].
-        """
-        return np.array([x[0]])
+        return x, y
 
     # ---------------------------------------------------------
     # Public API
     # ---------------------------------------------------------
-    def step(self, z):
+    def step(self):
         """
-        Perform one UKF predict-update cycle.
+        Perform one UKF predict-update cycle with IMU and GPS measurements.
 
         Parameters
         ----------
-        z : float
-            Scalar position measurement.
+        dt : float
+            Time step.
+        imu_meas : ndarray
+            IMU measurement vector [ax, ay, az, gx, gy, gz].
+        gps_meas : ndarray
+            GPS measurement vector [px, py, pz].
 
         Returns
         -------
@@ -120,8 +210,20 @@ class SimpleUKF(object):
         ndarray
             Updated covariance matrix.
         """
-        self.ukf.predict()
-        self.ukf.update(z)
+        self.ukf.predict(dt=self.dt)
+
+        # IMU update
+        if self.imu_meas is not None:
+            # Measurement noise
+            self.ukf.R = np.eye(6) * 0.5
+            self.ukf.update(self.imu_meas, hx=self.h_imu)
+
+        # GPS update
+        if self.gps_meas is not None:
+            # Measurement noise
+            self.ukf.R = np.eye(3) * 0.5  
+            self.ukf.update(self.gps_meas, hx=self.h_gps)
+
         return self.ukf.x.copy(), self.ukf.P.copy()
 
 
@@ -129,15 +231,28 @@ class SimpleUKF(object):
 # Example usage (minimal, matches your requested "simple first step")
 # =================================================================
 if __name__ == "__main__":
-    ukf = SimpleUKF()
+    ukf_obj = DroneUKFModel(dt=0.1)
 
     measurements = [1.2, 2.1, 3.05, 4.0, 5.1]
+    lat_lon_pairs = [
+        (33.6938, 73.0479),
+        (33.6940, 73.0483),
+        (33.6943, 73.0487),
+        (33.6946, 73.0490),
+        (33.6949, 73.0494)
+        ]
 
-    for z in measurements:
-        x, P = ukf.step(z)
+
+    # for z in measurements:
+    for z in lat_lon_pairs:
+        # Simulated IMU and GPS measurements
+        x, y = ukf_obj.latlon_to_webmercator(z[0], z[1])
+        ukf_obj.imu_meas = np.array([0.0, 0.0, -9.81, 0.01, 0.02, 0.03])
+        ukf_obj.gps_meas = np.array([x, y, 10.0]) # Simulated GPS position
+        x, P = ukf_obj.step()
         print("Updated state:", x)
         print("Covariance:\n", P)
         print("--------------")
 
-    print("Final state estimate:", ukf.ukf.x)
-    print("Final covariance:\n", ukf.ukf.P)
+    print("Final state estimate:", ukf_obj.ukf.x)
+    print("Final covariance:\n", ukf_obj.ukf.P)
