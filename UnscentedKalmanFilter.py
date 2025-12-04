@@ -164,7 +164,8 @@ class DroneUKFModel:
 
         return R
     
-    def latlon_to_webmercator(self, lat, lon):
+    @staticmethod
+    def latlon_to_webmercator(lat, lon):
         """
         Convert latitude/longitude (degrees) to Web Mercator coordinates (meters).
 
@@ -240,6 +241,13 @@ if __name__ == "__main__":
         (33.6943, 73.0487),
         (33.6946, 73.0490),
         (33.6949, 73.0494)
+        ]
+    lat_lon_pairs = [
+        (33.6938, 73.0479),
+        (33.6938, 73.0479),
+        (33.6938, 73.0479),
+        (33.6938, 73.0479),
+        (33.6938, 73.0479)
         ]
 
 
