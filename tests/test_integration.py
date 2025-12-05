@@ -28,7 +28,7 @@ class TestIntegrationSimulation:
     def test_short_simulation(self, test_info):
         function_name, module_name = test_info
         dt = 0.01
-        sim = TrajectorySimulator(dt=dt, total_time=0.1)  # very short simulation
+        sim = TrajectorySimulator(dt=dt, total_time=5)  # very short simulation
         true_states, imu_meas, gps_meas = sim.generate()
 
         ukf = DroneUKFModel(dt=dt)
