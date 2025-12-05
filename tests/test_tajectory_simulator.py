@@ -1,4 +1,4 @@
-from src.ukf.trajectory_simulator import TrajectorySimulator
+from ukf.trajectory_simulator import TrajectorySimulator
 
 
 class TestTrajectorySimulator:
