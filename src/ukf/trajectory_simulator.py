@@ -1,5 +1,7 @@
 import math
+
 import numpy as np
+
 
 class TrajectorySimulator:
     """
@@ -68,6 +70,5 @@ class TrajectorySimulator:
         return (
             np.array(self.true_states),
             np.array(self.imu_meas),
-            np.array(self.gps_meas)
+            np.array(self.gps_meas),
         )
-

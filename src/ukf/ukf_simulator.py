@@ -1,7 +1,7 @@
 import numpy as np
 from trajectory_simulator import TrajectorySimulator
-from UnscentedKalmanFilter import DroneUKFModel
 from UKF_plotter import UKFPlotter
+from UnscentedKalmanFilter import DroneUKFModel
 
 if __name__ == "__main__":
     dt = 0.01

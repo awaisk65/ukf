@@ -10,9 +10,9 @@ Full UKF accuracy evaluation for DroneUKFModel:
 """
 
 import math
+
 import numpy as np
-import matplotlib.pyplot as plt
-from filterpy.kalman import UnscentedKalmanFilter, MerweScaledSigmaPoints
+from filterpy.kalman import MerweScaledSigmaPoints, UnscentedKalmanFilter
 
 
 class DroneUKFModel:
@@ -48,21 +48,18 @@ class DroneUKFModel:
 
         # Sigma points
         self.points = MerweScaledSigmaPoints(
-            n=self.dim_x,
-            alpha=0.1,
-            beta=2.0,
-            kappa=1.0
+            n=self.dim_x, alpha=0.1, beta=2.0, kappa=1.0
         )
 
         # Construct the UKF
         # Create UKF
         self.ukf = UnscentedKalmanFilter(
             dim_x=self.dim_x,
-            dim_z=6,         # overwritten on each update
+            dim_z=6,  # overwritten on each update
             dt=0.01,
             fx=self.fx,
-            hx=None,         # we provide measurement functions manually per sensor
-            points=self.points
+            hx=None,  # we provide measurement functions manually per sensor
+            points=self.points,
         )
 
         # Initial state vector
@@ -71,7 +68,7 @@ class DroneUKFModel:
 
         # Initial Covariance (tune later)
         self.ukf.P = np.eye(self.dim_x) * 0.5
-       
+
         # Process noise
         self.ukf.Q = np.eye(self.dim_x) * 0.01
 
@@ -104,7 +101,7 @@ class DroneUKFModel:
 
         return np.array([px, py, pz, vx, vy, vz, qx, qy, qz, qw])
 
-   # ----------------------------------------------------------------------
+    # ----------------------------------------------------------------------
     # 2. IMU MEASUREMENT MODEL
     # ----------------------------------------------------------------------
     def h_imu(self, x) -> np.ndarray:
@@ -146,7 +143,7 @@ class DroneUKFModel:
         Output = [px, py, pz]
         """
         return x[0:3]
-    
+
     # ----------------------------------------------------------------------
     # Quaternion to rotation matrix
     # ----------------------------------------------------------------------
@@ -155,20 +152,20 @@ class DroneUKFModel:
         """Convert quaternion (qx,qy,qz,qw) → 3x3 rotation matrix."""
         R = np.zeros((3, 3))
 
-        R[0, 0] = 1 - 2*(qy**2 + qz**2)
-        R[0, 1] = 2*(qx*qy - qz*qw)
-        R[0, 2] = 2*(qx*qz + qy*qw)
+        R[0, 0] = 1 - 2 * (qy**2 + qz**2)
+        R[0, 1] = 2 * (qx * qy - qz * qw)
+        R[0, 2] = 2 * (qx * qz + qy * qw)
 
-        R[1, 0] = 2*(qx*qy + qz*qw)
-        R[1, 1] = 1 - 2*(qx**2 + qz**2)
-        R[1, 2] = 2*(qy*qz - qx*qw)
+        R[1, 0] = 2 * (qx * qy + qz * qw)
+        R[1, 1] = 1 - 2 * (qx**2 + qz**2)
+        R[1, 2] = 2 * (qy * qz - qx * qw)
 
-        R[2, 0] = 2*(qx*qz - qy*qw)
-        R[2, 1] = 2*(qy*qz + qx*qw)
-        R[2, 2] = 1 - 2*(qx**2 + qy**2)
+        R[2, 0] = 2 * (qx * qz - qy * qw)
+        R[2, 1] = 2 * (qy * qz + qx * qw)
+        R[2, 2] = 1 - 2 * (qx**2 + qy**2)
 
         return R
-    
+
     @staticmethod
     def latlon_to_webmercator(lat, lon) -> tuple:
         """
@@ -227,7 +224,7 @@ class DroneUKFModel:
         # GPS update
         if self.gps_meas is not None:
             # Measurement noise
-            self.ukf.R = np.eye(3) * 0.5  
+            self.ukf.R = np.eye(3) * 0.5
             self.ukf.update(self.gps_meas, hx=self.h_gps)
 
         return self.ukf.x.copy(), self.ukf.P.copy()
