@@ -41,29 +41,42 @@ class TrajectorySimulator:
         """
         r = 10.0
         omega = 0.4
+        g = np.array([0.0, 0.0, -9.81])  # ENU convention
 
         for k in range(self.N):
             t = k * self.dt
 
+            # True position
             px = r * math.cos(omega * t)
             py = r * math.sin(omega * t)
             pz = 5.0
 
+            # True velocity
             vx = -r * omega * math.sin(omega * t)
             vy = r * omega * math.cos(omega * t)
             vz = 0.0
+
+            # True acceleration (circular motion)
+            ax = -r * (omega**2) * math.cos(omega * t)
+            ay = -r * (omega**2) * math.sin(omega * t)
+            az = 0.0
+
+            a_world = np.array([ax, ay, az], dtype=float)
 
             q = np.array([0, 0, 0, 1])
 
             state = np.array([px, py, pz, vx, vy, vz, q[0], q[1], q[2], q[3]])
             self.true_states.append(state)
 
-            # positive 9.81 mimics the raw imu data from mavros in linear acceleration
-            accel = np.array([0, 0, 9.81]) + np.random.normal(0, 0.15, 3)
+            # IMU raw acceleration (body frame = world frame since q=[0,0,0,1])
+            # raw = a_world - g  → produces +9.81 on ground
+            imu_accel = a_world - g
 
-            gyro = np.random.normal(0, 0.01, 3)
-            imu = np.hstack((accel, gyro))
-            self.imu_meas.append(imu)
+            imu_accel += np.random.normal(0, 0.15, 3)
+            imu_gyro = np.random.normal(0, 0.01, 3)
+
+            imu_meas = np.hstack((imu_accel, imu_gyro))
+            self.imu_meas.append(imu_meas)
 
             gps_noise = np.random.normal(0, 0.5, 3)
             gps = state[0:3] + gps_noise
