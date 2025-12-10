@@ -58,7 +58,9 @@ class TrajectorySimulator:
             state = np.array([px, py, pz, vx, vy, vz, q[0], q[1], q[2], q[3]])
             self.true_states.append(state)
 
-            accel = np.array([0, 0, -9.81]) + np.random.normal(0, 0.15, 3)
+            # positive 9.81 mimics the raw imu data from mavros in linear acceleration
+            accel = np.array([0, 0, 9.81]) + np.random.normal(0, 0.15, 3)
+
             gyro = np.random.normal(0, 0.01, 3)
             imu = np.hstack((accel, gyro))
             self.imu_meas.append(imu)
