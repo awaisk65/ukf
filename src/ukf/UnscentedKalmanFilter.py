@@ -74,8 +74,8 @@ class DroneUKFModel:
 
         # Process noise
         self.ukf.Q = np.zeros((10, 10))
-        self.ukf.Q[0:3, 0:3] = np.eye(3) * 0.05
-        self.ukf.Q[3:6, 3:6] = np.eye(3) * 0.01
+        self.ukf.Q[0:3, 0:3] = np.eye(3) * 0.01
+        self.ukf.Q[3:6, 3:6] = np.eye(3) * 0.1
         self.ukf.Q[6:10, 6:10] = np.eye(4) * 1e-6
 
     # ---------------------------------------------------------
