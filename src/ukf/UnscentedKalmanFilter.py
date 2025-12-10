@@ -67,10 +67,16 @@ class DroneUKFModel:
         self.ukf.x[9] = 1.0  # quaternion identity
 
         # Initial Covariance (tune later)
-        self.ukf.P = np.eye(self.dim_x) * 0.5
+        self.ukf.P = np.zeros((10, 10))
+        self.ukf.P[0:3, 0:3] = np.eye(3) * 1.0  # px,py,pz
+        self.ukf.P[3:6, 3:6] = np.eye(3) * 0.5  # vx,vy,vz
+        self.ukf.P[6:10, 6:10] = np.eye(4) * 1e-4  # quaternion
 
         # Process noise
-        self.ukf.Q = np.eye(self.dim_x) * 0.01
+        self.ukf.Q = np.zeros((10, 10))
+        self.ukf.Q[0:3, 0:3] = np.eye(3) * 0.05
+        self.ukf.Q[3:6, 3:6] = np.eye(3) * 0.01
+        self.ukf.Q[6:10, 6:10] = np.eye(4) * 1e-6
 
     # ---------------------------------------------------------
     # 1. STATE TRANSITION MODEL
@@ -87,19 +93,51 @@ class DroneUKFModel:
         Orientation:
             kept constant in predict step (updated via IMU)
         """
-        px, py, pz = x[0:3]
-        vx, vy, vz = x[3:6]
-        qx, qy, qz, qw = x[6:10]
+        p = x[0:3].astype(float)
+        v = x[3:6].astype(float)
+        q = x[6:10].astype(float)
+        q = self.quat_normalize(q)
+
+        # get body-frame acceleration from last IMU measurement
+        if self.imu_meas is None:
+            a_body = np.zeros(3, dtype=float)
+        else:
+            a_body = np.asarray(self.imu_meas[0:3], dtype=float)
+
+        # rotation body -> world
+        R = self.quat_to_rot(q[0], q[1], q[2], q[3])
+
+        # convert acceleration to world frame
+        a_world = R.dot(a_body)
+
+        # gravity (ENU convention, z-up): gravity points down -> -9.80665
+        g = np.array([0.0, 0.0, -9.80665], dtype=float)
+
+        # subtract gravity (because accelerometer measures a_body = R^T*(a_world - g))
+        # Here we assume imu_meas contains raw sensor including gravity, so:
+        a_world_corrected = (
+            a_world - g
+        )  # a_world + g because a_body ≈ R^T*(a_world - g)
+        # note: sign convention depends on your IMU; verify with a static sensor:
+        # if stationary imu_meas ~ [0,0,9.81] in body z, then above is correct else a_world_corrected = a_world + g
+        # so that when stationary, a_world_corrected = 0
+
+        # a_world_corrected = np.clip(a_world_corrected, -50, 50)
 
         # Position update
-        px += vx * dt
-        py += vy * dt
-        pz += vz * dt
+        p_next = p + v * dt + 0.5 * a_world_corrected * (dt**2)
 
-        # No velocity update (accelerometer handled in update)
-        # No quaternion update in predict step
+        # Velocity update
+        v_next = v + a_world_corrected * dt
 
-        return np.array([px, py, pz, vx, vy, vz, qx, qy, qz, qw])
+        # Quaternion remains unchanged in predict step
+        q_next = q.copy()
+
+        x_next = np.zeros_like(x, dtype=float)
+        x_next[0:3] = p_next
+        x_next[3:6] = v_next
+        x_next[6:10] = self.quat_normalize(q_next)
+        return x_next
 
     # ----------------------------------------------------------------------
     # 2. IMU MEASUREMENT MODEL
@@ -165,6 +203,17 @@ class DroneUKFModel:
         R[2, 2] = 1 - 2 * (qx**2 + qy**2)
 
         return R
+
+    @staticmethod
+    def quat_normalize(q):
+        """
+        Normalize quaternion array-like [x,y,z,w] -> numpy array
+        """
+        q = np.asarray(q, dtype=float)
+        n = np.linalg.norm(q)
+        if n < 1e-12:
+            return np.array([0.0, 0.0, 0.0, 1.0], dtype=float)
+        return q / n
 
     @staticmethod
     def latlon_to_webmercator(lat, lon) -> tuple:
