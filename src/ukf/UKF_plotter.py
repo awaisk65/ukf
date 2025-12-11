@@ -23,6 +23,7 @@ class UKFPlotter:
         """
         t = np.arange(len(true_states))
 
+        # Position plots
         fig, axs = plt.subplots(3, 1, figsize=(10, 12))
 
         axs[0].plot(t, true_states[:, 0], linestyle="dotted")
@@ -39,6 +40,27 @@ class UKFPlotter:
         axs[2].plot(t, estimates[:, 2])
         axs[2].set_title("Z Position")
         axs[2].legend(["True State", "Z Position Estimate"])
+
+        plt.tight_layout()
+        plt.show()
+
+        # Velocity plots
+        fig, axs = plt.subplots(3, 1, figsize=(10, 12))
+
+        axs[0].plot(t, true_states[:, 3], linestyle="dotted")
+        axs[0].plot(t, estimates[:, 3])
+        axs[0].set_title("X Velocity")
+        axs[0].legend(["True State", "X Velocity Estimate"])
+
+        axs[1].plot(t, true_states[:, 4], linestyle="dotted")
+        axs[1].plot(t, estimates[:, 4])
+        axs[1].set_title("Y Velocity")
+        axs[1].legend(["True State", "Y Velocity Estimate"])
+
+        axs[2].plot(t, true_states[:, 5], linestyle="dotted")
+        axs[2].plot(t, estimates[:, 5])
+        axs[2].set_title("Z Velocity")
+        axs[2].legend(["True State", "Z Velocity Estimate"])
 
         plt.tight_layout()
         plt.show()
