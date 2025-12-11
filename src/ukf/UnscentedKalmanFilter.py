@@ -44,6 +44,7 @@ class DroneUKFModel:
         self.dt = dt
         self.imu_meas = None
         self.gps_meas = None
+        self.prev_gps = np.zeros(3)
         self.dim_x = 10  # State dimension
 
         # Sigma points
@@ -191,7 +192,14 @@ class DroneUKFModel:
         GPS/VPS position measurement in ENU/Mercator frame.
         Output = [px, py, pz]
         """
-        return x[0:3]
+        return x[0:3]  # px, py, pz
+
+    def h_gps_velocity(self, x):
+        """
+        GPS/VPS velocity measurement in ENU/Mercator frame.
+        Output = [vx, vy, vz]
+        """
+        return x[3:6]  # vx, vy, vz
 
     # ----------------------------------------------------------------------
     # Quaternion to rotation matrix
@@ -294,6 +302,10 @@ class DroneUKFModel:
 
         self.ukf.predict(dt=self.dt)
 
+        # R = uncertainty or noise in measurements:
+        # bigger values = very noisy measurements,
+        # smaller values = accurate measurements
+
         # IMU update
         if self.imu_meas is not None:
             # Measurement noise
@@ -308,5 +320,12 @@ class DroneUKFModel:
             # Measurement noise
             self.ukf.R = R_gps
             self.ukf.update(self.gps_meas, hx=self.h_gps)
+
+            # # GPS velocity update (optional) and will be added later
+            # v_gps_meas = (self.gps_meas - self.prev_gps) / self.dt
+            # self.prev_gps = self.gps_meas.copy()
+            # self.ukf.R = np.eye(3) * 0.76
+            # self.ukf.update(v_gps_meas, hx=self.h_gps_velocity)
+            # self.ukf.P += np.eye(self.dim_x) * 1e-6
 
         return self.ukf.x.copy(), self.ukf.P.copy()
