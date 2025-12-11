@@ -76,7 +76,7 @@ class TestIntegrationSimulation:
         plt.show = original_show
 
         # Assertions
-        assert len(figures) == 2
+        assert len(figures) == 3
         for i, fig_file in enumerate(FIG_DIR.glob(f"{module_name}_fig_*.png")):
             assert fig_file.exists()
             assert fig_file.suffix == ".png"
