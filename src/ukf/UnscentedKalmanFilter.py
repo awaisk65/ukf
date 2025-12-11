@@ -67,15 +67,26 @@ class DroneUKFModel:
         self.ukf.x[9] = 1.0  # quaternion identity
 
         # Initial Covariance (tune later)
+        # This is basically initial uncertainty about the state, i.e., how much we
+        # trust the initial state guess.
+        # big values = less trust on starting estimates and heavily weight initial measurements.
+        # small values = more trust on starting estimates and less influence by initial measurements.
         self.ukf.P = np.zeros((10, 10))
-        self.ukf.P[0:3, 0:3] = np.eye(3) * 1.0  # px,py,pz
-        self.ukf.P[3:6, 3:6] = np.eye(3) * 0.5  # vx,vy,vz
+        self.ukf.P[0:2, 0:2] = np.eye(2) * 0.7  # px,py
+        self.ukf.P[2:3, 2:3] = np.eye(1) * 0.1  # pz
+        self.ukf.P[3:5, 3:5] = np.eye(2) * 0.7  # vx,vy
+        self.ukf.P[5:6, 5:6] = np.eye(1) * 0.1  # vz
         self.ukf.P[6:10, 6:10] = np.eye(4) * 1e-4  # quaternion
 
         # Process noise
+        # uncertainty introduced by the system model itself
+        # bigger values = more uncertainty in model and relay on incoming measurements,
+        # smaller values = less uncertainty in model and rely more on prediction
         self.ukf.Q = np.zeros((10, 10))
-        self.ukf.Q[0:3, 0:3] = np.eye(3) * 0.01
-        self.ukf.Q[3:6, 3:6] = np.eye(3) * 0.1
+        self.ukf.Q[0:2, 0:2] = np.eye(2) * 0.01
+        self.ukf.Q[2:3, 2:3] = np.eye(1) * 0.008
+        self.ukf.Q[3:5, 3:5] = np.eye(2) * 0.09
+        self.ukf.Q[5:6, 5:6] = np.eye(1) * 0.03
         self.ukf.Q[6:10, 6:10] = np.eye(4) * 1e-6
 
     # ---------------------------------------------------------
@@ -262,18 +273,40 @@ class DroneUKFModel:
         ndarray
             Updated covariance matrix.
         """
+        # IMU: [ax, ay, az, gx, gy, gz]
+        sigma_acc = 0.05  # m/s^2 (simulator)
+        sigma_gyro = 0.01  # rad/s
+        R_imu = np.diag(
+            [
+                sigma_acc**2,
+                sigma_acc**2,
+                2.0 * sigma_acc**2,
+                sigma_gyro**2,
+                sigma_gyro**2,
+                sigma_gyro**2,
+            ]
+        )
+
+        # GPS: [px, py, pz]
+        sigma_gps = 0.5  # m (simulator)
+        R_gps = np.eye(3) * (sigma_gps**2)
+        R_gps = np.diag([sigma_gps**2, sigma_gps**2, 2.0 * sigma_gps**2])
+
         self.ukf.predict(dt=self.dt)
 
         # IMU update
         if self.imu_meas is not None:
             # Measurement noise
-            self.ukf.R = np.eye(6) * 0.5
+            # uncertainty or noise in measurements
+            # bigger values = very noisy measurements
+            # smaller values = accurate measurements
+            self.ukf.R = R_imu
             self.ukf.update(self.imu_meas, hx=self.h_imu)
 
         # GPS update
         if self.gps_meas is not None:
             # Measurement noise
-            self.ukf.R = np.eye(3) * 0.5
+            self.ukf.R = R_gps
             self.ukf.update(self.gps_meas, hx=self.h_gps)
 
         return self.ukf.x.copy(), self.ukf.P.copy()
