@@ -45,6 +45,7 @@ class DroneUKFModel:
         self.imu_meas = None
         self.gps_meas = None
         self.prev_gps = np.zeros(3)
+        self.prev_v = np.zeros(3)
         self.dim_x = 10  # State dimension
 
         # Sigma points
@@ -74,7 +75,7 @@ class DroneUKFModel:
         # small values = more trust on starting estimates and less influence by initial measurements.
         self.ukf.P = np.zeros((10, 10))
         self.ukf.P[0:2, 0:2] = np.eye(2) * 0.7  # px,py
-        self.ukf.P[2:3, 2:3] = np.eye(1) * 0.1  # pz
+        self.ukf.P[2:3, 2:3] = np.eye(1) * 0.01  # pz
         self.ukf.P[3:5, 3:5] = np.eye(2) * 0.7  # vx,vy
         self.ukf.P[5:6, 5:6] = np.eye(1) * 0.1  # vz
         self.ukf.P[6:10, 6:10] = np.eye(4) * 1e-4  # quaternion
@@ -168,16 +169,34 @@ class DroneUKFModel:
             [ax, ay, az, gx, gy, gz]
         """
 
-        # Extract quaternion
-        qx, qy, qz, qw = x[6:10]
+        # extract positions, velocities, quaternion
+        v = x[3:6].astype(float)
+        q = self.quat_normalize(x[6:10])
 
-        # Rotation matrix from quaternion
-        R = self.quat_to_rot(qx, qy, qz, qw)
+        # Compute acceleration from velocity derivative (simple finite difference approximation)
+        # If you have previous velocities stored, you can compute v_dot = (v - v_prev)/dt
+        # For UKF sigma points, we can approximate a_world as 0 (or use motion model)
+        if hasattr(self, "prev_v"):
+            a_world = (v - self.prev_v) / self.dt
+        else:
+            a_world = np.zeros(3)
 
-        g = np.array([0, 0, -9.81])  # gravity
+        # using the above method causes large errors due to noise amplification,
+        # so assuming constant velocity:
+        # acceleration = 0
+        a_world = np.zeros(3)
 
-        # IMU accel = R^T * g
-        accel_body = R.T @ g
+        # store current velocity for next step
+        self.prev_v = v.copy()
+
+        # gravity
+        g = np.array([0.0, 0.0, -9.80665])
+
+        # rotation matrix body <- world
+        R = self.quat_to_rot(q[0], q[1], q[2], q[3])
+
+        # predicted accelerometer measurement in body frame
+        accel_body = R.T @ (a_world + g)
 
         # Gyro predicted as zero here
         gyro_body = np.array([0.0, 0.0, 0.0])
@@ -281,6 +300,10 @@ class DroneUKFModel:
         ndarray
             Updated covariance matrix.
         """
+        # R = uncertainty or noise in measurements:
+        # bigger values = very noisy measurements,
+        # smaller values = accurate measurements
+
         # IMU: [ax, ay, az, gx, gy, gz]
         sigma_acc = 0.05  # m/s^2 (simulator)
         sigma_gyro = 0.01  # rad/s
@@ -288,7 +311,7 @@ class DroneUKFModel:
             [
                 sigma_acc**2,
                 sigma_acc**2,
-                2.0 * sigma_acc**2,
+                2 * sigma_acc**2,
                 sigma_gyro**2,
                 sigma_gyro**2,
                 sigma_gyro**2,
@@ -298,13 +321,9 @@ class DroneUKFModel:
         # GPS: [px, py, pz]
         sigma_gps = 0.5  # m (simulator)
         R_gps = np.eye(3) * (sigma_gps**2)
-        R_gps = np.diag([sigma_gps**2, sigma_gps**2, 2.0 * sigma_gps**2])
+        R_gps = np.diag([sigma_gps**2, sigma_gps**2, 2 * sigma_gps**2])
 
         self.ukf.predict(dt=self.dt)
-
-        # R = uncertainty or noise in measurements:
-        # bigger values = very noisy measurements,
-        # smaller values = accurate measurements
 
         # IMU update
         if self.imu_meas is not None:
