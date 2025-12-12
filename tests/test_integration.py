@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -80,3 +81,45 @@ class TestIntegrationSimulation:
         for i, fig_file in enumerate(FIG_DIR.glob(f"{module_name}_fig_*.png")):
             assert fig_file.exists()
             assert fig_file.suffix == ".png"
+
+        # Compare estimated vs true positions
+        pos_error = np.linalg.norm(true_states[:, 0:3] - estimates[:, 0:3], axis=1)
+
+        # Compare estimated vs true velocities
+        vel_error = np.linalg.norm(true_states[:, 3:6] - estimates[:, 3:6], axis=1)
+
+        # Orientation sanity check
+        q_norms = np.linalg.norm(estimates[:, 6:10], axis=1)
+
+        # assert np.mean(pos_error) < 1.0  # meters
+        # assert np.max(pos_error) < 10.0  # meters
+        # assert np.std(pos_error) < 1.0  # meters
+        # assert np.mean(vel_error) < 1.5  # m/s
+        # assert np.max(vel_error) < 5.5  # m/s
+        # assert np.std(vel_error) < 1.0  # m/s
+        # assert np.all(q_norms > 0.9)  # quaternions should be normalized
+        # assert np.all(q_norms < 1.1)  # quaternions should be normalized
+
+        summary_lines = [
+            "### UKF Integration Test Summary",
+            f"**Mean position error:** {np.mean(pos_error)} m",
+            f"**Max position error:** {np.max(pos_error)} m",
+            f"**Std position error:** {np.std(pos_error)} m",
+            "",
+            f"**Mean velocity error:** {np.mean(vel_error)} m/s",
+            f"**Max velocity error:** {np.max(vel_error)} m/s",
+            f"**Std velocity error:** {np.std(vel_error)} m/s",
+            "",
+            f"**Quaternion norm min:** {np.min(q_norms)}",
+            f"**Quaternion norm max:** {np.max(q_norms)}",
+            "",
+        ]
+
+        for line in summary_lines:
+            self.write_summary(line)
+
+    def write_summary(self, text: str) -> None:
+        summary_file = os.getenv("GITHUB_STEP_SUMMARY", None)
+        if summary_file:
+            with open(summary_file, "a", encoding="utf-8") as f:
+                f.write(text + "\n")
