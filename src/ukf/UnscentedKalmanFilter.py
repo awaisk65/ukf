@@ -96,15 +96,33 @@ class DroneUKFModel:
     # ---------------------------------------------------------
     def fx(self, x, dt) -> np.ndarray:
         """
-        Predict next state.
-        Quaternion integrated using gyro (simple integration inside update step).
+        State transition function for the Unscented Kalman Filter.
 
-        Translational model:
-            p_next = p + v * dt
-            v_next = v   (accel added via imu update, not predict)
+        This function performs the nonlinear prediction step using the current
+        state estimate and the most recent IMU measurements (accelerometer and
+        gyroscope). The state vector has the structure:
 
+        x = [px, py, pz, vx, vy, vz, qx, qy, qz, qw]
+
+        Translational:
+            p_next = p + v * dt + 0.5 * a_world_corrected * dt^2
+            v_next = v + a_world_corrected * dt
         Orientation:
-            kept constant in predict step (updated via IMU)
+            dq/dt = 0.5 * Omega(w) * q
+
+        Parameters
+        ----------
+        x : ndarray, shape (10,)
+            Current state vector.
+        dt : float
+            Prediction timestep.
+
+        Returns
+        -------
+        ndarray, shape (10,)
+            Predicted next state after applying IMU-driven translational
+            and rotational propagation.
+
         """
         p = x[0:3].astype(float)
         v = x[3:6].astype(float)
