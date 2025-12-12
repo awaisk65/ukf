@@ -65,11 +65,20 @@ class UKFPlotter:
         plt.tight_layout()
         plt.show()
 
-        plt.figure(figsize=(10, 6))
-        plt.plot(t, errors[:, 0])
-        plt.plot(t, errors[:, 1])
-        plt.plot(t, errors[:, 2])
-        plt.title("Position Estimation Errors")
-        plt.legend(["Ex", "Ey", "Ez"])
-        plt.grid(True)
+        # Error plots
+        fig, axs = plt.subplots(2, 1, figsize=(10, 10))
+
+        axs[0].plot(t, errors[:, 0])
+        axs[0].plot(t, errors[:, 1])
+        axs[0].plot(t, errors[:, 2])
+        axs[0].set_title("Position Estimation Errors")
+        axs[0].legend(["Ex", "Ey", "Ez"])
+
+        axs[1].plot(t, errors[:, 3])
+        axs[1].plot(t, errors[:, 4])
+        axs[1].plot(t, errors[:, 5])
+        axs[1].set_title("Velocity Estimation Errors")
+        axs[1].legend(["Vx", "Vy", "Vz"])
+
+        plt.tight_layout()
         plt.show()
