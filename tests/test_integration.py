@@ -42,7 +42,7 @@ class TestIntegrationSimulation:
 
             x_hat, _ = ukf.step()
             estimates.append(x_hat)
-            err = true_states[k, 0:3] - x_hat[0:3]
+            err = true_states[k, 0:6] - x_hat[0:6]
             errors.append(err)
 
         estimates = np.array(estimates)
@@ -50,7 +50,7 @@ class TestIntegrationSimulation:
 
         # Sanity checks
         assert estimates.shape[0] == true_states.shape[0]
-        assert errors.shape == (true_states.shape[0], 3)
+        assert errors.shape == (true_states.shape[0], 6)
 
         figures = []
 
