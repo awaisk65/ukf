@@ -132,8 +132,10 @@ class DroneUKFModel:
         # get body-frame acceleration from last IMU measurement
         if self.imu_meas is None:
             a_body = np.zeros(3, dtype=float)
+            gyro = np.zeros(3, dtype=float)
         else:
             a_body = np.asarray(self.imu_meas[0:3], dtype=float)
+            gyro = np.asarray(self.imu_meas[3:6], dtype=float)
 
         # rotation body -> world
         R = self.quat_to_rot(q[0], q[1], q[2], q[3])
@@ -161,8 +163,27 @@ class DroneUKFModel:
         # Velocity update
         v_next = v + a_world_corrected * dt
 
-        # Quaternion remains unchanged in predict step
-        q_next = q.copy()
+        # Quaternion propagation using gyro measurements
+        wx, wy, wz = gyro
+
+        # omega matrix is constructed from angular rates of gyro
+        # This matrix encodes quaternion kinematics i.e how quaternion changes with angular velocity
+        Omega = np.array(
+            [
+                [0.0, -wx, -wy, -wz],
+                [wx, 0.0, wz, -wy],
+                [wy, -wz, 0.0, wx],
+                [wz, wy, -wx, 0.0],
+            ]
+        )
+
+        # dp = quaternion derivative i.e a 4x1 vector (x,y,z,w)
+        dq = 0.5 * Omega @ q
+
+        # q_next is integrated quaternion
+        q_next = q + dq * dt
+
+        q_next = self.quat_normalize(q_next)
 
         x_next = np.zeros_like(x, dtype=float)
         x_next[0:3] = p_next
