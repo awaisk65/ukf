@@ -103,15 +103,15 @@ class TestIntegrationSimulation:
         summary_lines = [
             "### UKF Integration Test Summary",
             f"**Mean position error:** {np.trunc((np.mean(pos_error)) * 1000) / 1000} m",
-            f"**Max position error:** {np.trunc((np.max(pos_error) * 1000) / 1000)} m",
-            f"**Std position error:** {np.trunc((np.std(pos_error) * 1000) / 1000)} m",
+            f"**Max position error:** {np.trunc((np.max(pos_error)) * 1000) / 1000} m",
+            f"**Std position error:** {np.trunc((np.std(pos_error)) * 1000) / 1000} m",
             "",
-            f"**Mean velocity error:** {np.trunc((np.mean(vel_error) * 1000) / 1000)} m/s",
-            f"**Max velocity error:** {np.trunc((np.max(vel_error) * 1000) / 1000)} m/s",
-            f"**Std velocity error:** {np.trunc((np.std(vel_error) * 1000) / 1000)} m/s",
+            f"**Mean velocity error:** {np.trunc((np.mean(vel_error)) * 1000) / 1000} m/s",
+            f"**Max velocity error:** {np.trunc((np.max(vel_error)) * 1000) / 1000} m/s",
+            f"**Std velocity error:** {np.trunc((np.std(vel_error)) * 1000) / 1000} m/s",
             "",
-            f"**Quaternion norm min:** {np.trunc((np.min(q_norms) * 1000) / 1000)}",
-            f"**Quaternion norm max:** {np.trunc((np.max(q_norms) * 1000) / 1000)}",
+            f"**Quaternion norm min:** {np.trunc((np.min(q_norms)) * 1000) / 1000}",
+            f"**Quaternion norm max:** {np.trunc((np.max(q_norms)) * 1000) / 1000}",
             "",
         ]
 
