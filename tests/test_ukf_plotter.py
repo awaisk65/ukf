@@ -27,9 +27,9 @@ def test_plot_results_saves_figures(test_info):
     """
     function_name, module_name = test_info
 
-    true_states = np.zeros((10, 6))
-    estimates = np.zeros((10, 9))
-    errors = np.zeros((10, 3))
+    true_states = np.zeros((10, 10))
+    estimates = np.zeros((10, 10))
+    errors = np.zeros((10, 6))
 
     figures = []
 
